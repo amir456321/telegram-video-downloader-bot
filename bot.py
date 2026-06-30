@@ -1,36 +1,38 @@
-import os
-from dotenv import load_dotenv
-import yt_dlp
-from telegram import Update
-from telegram.ext import Application, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+)
 
-load_dotenv()
+from config import BOT_TOKEN
+from handlers.start import start
+from handlers.download import download
+from handlers.callbacks import callbacks
+from services.updater import start_updater
 
-TOKEN = os.getenv("BOT_TOKEN")
-async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
 
-    try:
-        ydl_opts = {
-            "format": "best",
-            "outtmpl": "downloads/%(title)s.%(ext)s",
-        }
+def main():
 
-        os.makedirs("downloads", exist_ok=True)
+    # اجرای آپدیت خودکار yt-dlp در پس‌زمینه
+    start_updater()
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+    app = Application.builder().token(BOT_TOKEN).build()
 
-        await update.message.reply_video(video=open(filename, "rb"))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            download,
+        )
+    )
+    app.add_handler(CallbackQueryHandler(callbacks))
 
-        os.remove(filename)
+    print("🤖 Bot Started")
 
-    except Exception as e:
-        await update.message.reply_text(str(e))
+    app.run_polling()
 
-app = Application.builder().token(TOKEN).build()
 
-app.add_handler(MessageHandler(filters.TEXT, download))
-
-app.run_polling()
+if __name__ == "__main__":
+    main()
